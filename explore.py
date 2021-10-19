@@ -1,7 +1,7 @@
 #!/usr/bin/python3.9
 
 from curses import wrapper
-import os, subprocess, shutil, curses, time, pickle
+import os, subprocess, shutil, curses, time, pickle, sys
 
 class File:
     def __init__(self, filename, ext, timestamp):
@@ -33,7 +33,7 @@ def syncFilesDB(files, filesdb, fromDB):
             dbfiles[i].star = updated_file.star
             dbfiles[i].rating = updated_file.rating
             
-    for i in toremove:
+    for i in reversed(sorted(toremove)):
         del dbfiles[i]
 
     for i, file in enumerate(files):
@@ -50,9 +50,18 @@ def get_files(path, desired_ext):
         f = allfiles[i]
         (file,ext) = os.path.splitext(f)
         if ext == desired_ext:
-            stamp = os.path.getmtime(f)
+            stamp = os.path.getmtime(path+"/"+f)
             files.append(File(file, ext, stamp))
     return files
+
+def draw_title(pad, max_file_length, max_stamp_length, max_star_length):
+    pad.addstr(0, 0, "filename", curses.A_BOLD)
+    pad.addstr(0, max_file_length+1, "last modif", curses.A_BOLD)
+    pad.addstr(0, max_file_length+1+max_stamp_length+1, "star", curses.A_BOLD)
+    star_space = max(0,max_star_length+1-4)
+    pad.addstr(0, max_file_length+1+max_stamp_length+5, " " * star_space, curses.A_BOLD)
+    pad.addstr(0, max_file_length+1+max_stamp_length+1+max_star_length+1, "rating", curses.A_BOLD)
+    pad.addstr(1, 0, "=" * 100, curses.A_BOLD)
 
 def draw_files(pad, files, selection, start_y, max_file_length, max_star_length, max_stamp_length):
     lineIndex = 0
@@ -69,19 +78,32 @@ def main(stdscr):
     screen = curses.initscr()
     pad = curses.newpad(100,100)
 
-    filesdb = "filesdb.p"
-    files = get_files(".", ".mp4")
-    syncFilesDB(files, filesdb, True)
+    rootFolder = "."
+    extensionFilter = ""
+    cmdProcess = "echo"
+    filesdb = ".filesdb"
+    
+    if len(sys.argv) > 1:
+        rootFolder = sys.argv[1]
+        if len(sys.argv) > 2:
+            extensionFilter = sys.argv[2]
+            if len(sys.argv) > 3:
+                cmdProcess = sys.argv[3]
+                if len(sys.argv) > 4:
+                    filesdb = sys.argv[4]
+
+    files = get_files(rootFolder, extensionFilter)
+    syncFilesDB(files, rootFolder+"/"+filesdb, True)
+
+    if len(files) == 0:
+        return
+    
     selection=0
     max_file_length = max(len(f.filename) for f in files)
     max_stamp_length = len(time.asctime())
     max_star_length = max(len("star"), max(len(f.star) for f in files))
 
-    pad.addstr(0, 0, "filename", curses.A_BOLD)
-    pad.addstr(0, max_file_length+1, "last modif", curses.A_BOLD)
-    pad.addstr(0, max_file_length+1+max_stamp_length+1, "star", curses.A_BOLD)
-    pad.addstr(0, max_file_length+1+max_stamp_length+1+max_star_length+1, "rating", curses.A_BOLD)
-    pad.addstr(1, 0, "=" * 100, curses.A_BOLD)
+    draw_title(pad, max_file_length, max_stamp_length, max_star_length)
 
     header= 2
     max_y = 22
@@ -99,17 +121,18 @@ def main(stdscr):
             selection = max(selection-1, 0)
         elif key == "KEY_LEFT":
             files[selection].rating = max(0, files[selection].rating-1)
-            syncFilesDB(files, filesdb, False)
+            syncFilesDB(files, rootFolder+"/"+filesdb, False)
         elif key == "KEY_RIGHT":
             files[selection].rating = min(5, files[selection].rating+1)
-            syncFilesDB(files, filesdb, False)
+            syncFilesDB(files, rootFolder+"/"+filesdb, False)
         elif key == "e":
             files[selection].star = pad.getstr()
-            syncFilesDB(files, filesdb, False)
+            syncFilesDB(files, rootFolder+"/"+filesdb, False)
             max_star_length = max(len("star"), max(len(f.star) for f in files))
+            draw_title(pad, max_file_length, max_stamp_length, max_star_length)
         elif key == "\n":
-            selectedFile = files[selection].filename + files[selection].ext
-            subprocess.run(["mplayer", f'{os.path.abspath(selectedFile)}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            selectedFile = rootFolder+"/"+files[selection].filename + files[selection].ext
+            subprocess.run([cmdProcess, f'{os.path.abspath(selectedFile)}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif key == "q" or key == "Q":
             exit()
 
