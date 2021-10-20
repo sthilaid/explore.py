@@ -16,6 +16,8 @@ max_stamp_length = 0
 max_fsize_length = 0
 max_star_length = 0
 max_rating_length = 0
+lastsizex = 0
+lastsizey = 0
 
 class File:
     def __init__(self, filename, ext, timestamp, fsize):
@@ -23,6 +25,7 @@ class File:
         self.ext = ext
         self.timestamp = timestamp
         self.filesize = fsize
+        self.isMarkedForDeletion = False
         self.star = ""
         self.rating = 0
 
@@ -98,7 +101,8 @@ def draw_files(pad, files, selection, start_y):
     lineIndex = 0
     for i,f in enumerate(files):
         attr = curses.A_STANDOUT if i == selection else 0
-        pad.addstr(start_y+i, 0, f.filename, attr)
+        pad.addstr(start_y+i, 0, "D " if f.isMarkedForDeletion else "  ", attr)
+        pad.addstr(start_y+i, 2, f.filename, attr)
         pad.addstr(start_y+i, len(f.filename), " "*(max_file_length - len(f.filename)), attr)
         stampstr = time.asctime(time.localtime(f.timestamp))
         xoffset = max_file_length+1
@@ -113,6 +117,7 @@ def draw_files(pad, files, selection, start_y):
 
 def main(stdscr):
     global sortkey, sortdir, max_file_length, max_stamp_length, max_fsize_length, max_star_length, max_rating_length
+    global lastsizey, lastsizex
     
     curses.curs_set(0) # hide cursor
     screen = curses.initscr()
@@ -140,7 +145,7 @@ def main(stdscr):
         return
     
     selection=0
-    max_file_length = max(len(f.filename) for f in files)
+    max_file_length = 2 + max(len(f.filename) for f in files) # 2 for Deletion flag
     max_stamp_length = len(time.asctime())
     max_fsize_length = 8
     max_star_length = max(len("star"), max(len(f.star) for f in files))
@@ -156,6 +161,12 @@ def main(stdscr):
         draw_files(pad, files, selection, header)
         pad_y = selection - files_max_y if selection > files_max_y else 0
         pad.refresh(pad_y, 0, 0, 0, max_y, 79)
+
+        if curses.is_term_resized(lastsizey, lastsizex):
+            lastsizey, lastsizex = screen.getmaxyx()
+            screen.clear()
+            curses.resizeterm(lastsizey, lastsizex)
+            screen.refresh()
 
         key = screen.getkey()
         if key == "KEY_DOWN":
@@ -177,6 +188,21 @@ def main(stdscr):
         elif key == "\n":
             selectedFile = rootFolder+"/"+files[selection].filename + files[selection].ext
             subprocess.run([cmdProcess, f'{os.path.abspath(selectedFile)}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif key == "d":
+            files[selection].isMarkedForDeletion = not files[selection].isMarkedForDeletion
+        elif key == "x":
+            for f in files:
+                if f.isMarkedForDeletion:
+                    filename = rootFolder+"/"+f.filename + f.ext
+                    if os.path.isfile(filename):
+                        os.remove(filename)
+                    else:
+                        shutil.rmtree(filename)
+            files = [f for f in files if not f.isMarkedForDeletion]
+            syncFilesDB(files, rootFolder+"/"+filesdb, False)
+            pad.clear()
+            draw_title(pad)
+            draw_files(pad, files, selection, header)
         elif key == "s":
             if sortdir == 0:
                 sortdir = 1
