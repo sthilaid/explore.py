@@ -1,7 +1,7 @@
 #!/usr/bin/python3.9
 
 from curses import wrapper
-import os, subprocess, shutil, curses, time, pickle, sys
+import os, subprocess, shutil, curses, time, pickle, sys, curses.textpad
 
 sortfns = [lambda x: x.filename,
                lambda x: x.timestamp,
@@ -18,6 +18,8 @@ max_star_length = 0
 max_rating_length = 0
 lastsizex = 0
 lastsizey = 0
+windowx = 0
+windowy = 0
 
 class File:
     def __init__(self, filename, ext, timestamp, fsize):
@@ -28,6 +30,15 @@ class File:
         self.isMarkedForDeletion = False
         self.star = ""
         self.rating = 0
+
+def update_size(screen):
+    global windowy, windowx
+    y, x = screen.getmaxyx()
+    if y != windowy or x != windowx:
+        windowy, windowx = y, x
+        #screen.clear()
+        curses.resizeterm(windowy, windowx)
+        #screen.refresh()
 
 def syncFilesDB(files, filesdb, fromDB):
     #return # FIXME
@@ -103,7 +114,7 @@ def draw_files(pad, files, selection, start_y):
         attr = curses.A_STANDOUT if i == selection else 0
         pad.addstr(start_y+i, 0, "D " if f.isMarkedForDeletion else "  ", attr)
         pad.addstr(start_y+i, 2, f.filename, attr)
-        pad.addstr(start_y+i, len(f.filename), " "*(max_file_length - len(f.filename)), attr)
+        pad.addstr(start_y+i, 2+len(f.filename), " "*(max_file_length - len(f.filename)), attr)
         stampstr = time.asctime(time.localtime(f.timestamp))
         xoffset = max_file_length+1
         pad.addstr(start_y+i, xoffset, stampstr, attr)
@@ -122,6 +133,10 @@ def main(stdscr):
     curses.curs_set(0) # hide cursor
     screen = curses.initscr()
     pad = curses.newpad(100,100)
+    update_size(screen)
+
+    # boxwindow = curses.newwin(5,30,2,1)
+    # box = curses.textpad.Textbox(boxwindow)
 
     rootFolder = "."
     extensionFilter = ""
@@ -154,19 +169,13 @@ def main(stdscr):
     draw_title(pad)
 
     header= 2
-    max_y = 22
-    files_max_y = max_y - header
-    
     while(True):
+        update_size(screen)
+        files_max_y = max(0,windowy - header)
         draw_files(pad, files, selection, header)
-        pad_y = selection - files_max_y if selection > files_max_y else 0
-        pad.refresh(pad_y, 0, 0, 0, max_y, 79)
 
-        if curses.is_term_resized(lastsizey, lastsizex):
-            lastsizey, lastsizex = screen.getmaxyx()
-            screen.clear()
-            curses.resizeterm(lastsizey, lastsizex)
-            screen.refresh()
+        pad_y = selection - files_max_y if selection > files_max_y else 0
+        pad.refresh(pad_y, 0, 0, 0, windowy-1, windowx-1)
 
         key = screen.getkey()
         if key == "KEY_DOWN":
@@ -181,6 +190,8 @@ def main(stdscr):
             syncFilesDB(files, rootFolder+"/"+filesdb, False)
         elif key == "e":
             input = pad.getstr().decode("utf-8")
+            # box.edit()
+            # input = box.gather()
             files[selection].star = input if input else ""
             syncFilesDB(files, rootFolder+"/"+filesdb, False)
             max_star_length = max(len("star"), max(len(f.star) for f in files))
@@ -213,5 +224,5 @@ def main(stdscr):
             draw_title(pad)
         elif key == "q" or key == "Q":
             exit()
-
+            
 wrapper(main)
