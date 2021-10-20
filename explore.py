@@ -107,24 +107,28 @@ def draw_title(pad):
     pad.addstr(0, offset+5, " " * 60, curses.A_BOLD)
     pad.addstr(1, 0, "=" * 100, curses.A_BOLD)
 
-def draw_files(pad, files, selection, start_y):
+def draw_files(pad, files, selection):
     global max_file_length, max_star_length, max_rating_length, max_stamp_length, max_fsize_length
     lineIndex = 0
     for i,f in enumerate(files):
         attr = curses.A_STANDOUT if i == selection else 0
-        pad.addstr(start_y+i, 0, "D " if f.isMarkedForDeletion else "  ", attr)
-        pad.addstr(start_y+i, 2, f.filename, attr)
-        pad.addstr(start_y+i, 2+len(f.filename), " "*(max_file_length - len(f.filename)), attr)
-        stampstr = time.asctime(time.localtime(f.timestamp))
+        pad.addstr(i, 0, "D " if f.isMarkedForDeletion else "  ", attr)
+        pad.addstr(i, 2, f.filename, attr)
+        pad.addstr(i, 2+len(f.filename), " "*(max_file_length - len(f.filename)), attr)
+
+        stampstr = time.asctime(time.localtime(f.timestamp))+" "
         xoffset = max_file_length+1
-        pad.addstr(start_y+i, xoffset, stampstr, attr)
+        pad.addstr(i, xoffset, stampstr, attr)
+
         xoffset += max_stamp_length+1
-        pad.addstr(start_y+i, xoffset, '{:.2f} GB'.format(f.filesize*0.000000001), attr);
+        pad.addstr(i, xoffset, '{:.2f} GB '.format(f.filesize*0.000000001), attr);
+
         xoffset += max_fsize_length+1
-        pad.addstr(start_y+i, xoffset, "*" * f.rating + " " * (5 - f.rating), attr)
+        pad.addstr(i, xoffset, "*" * f.rating + " " * (5 - f.rating)+"  ", attr)
+
         xoffset += max_rating_length+1
-        pad.addstr(start_y+i, xoffset, f.star, attr)
-        pad.addstr(start_y+i, xoffset+len(f.star), " "*40, attr)
+        pad.addstr(i, xoffset, f.star, attr)
+        pad.addstr(i, xoffset+len(f.star), " "*40, attr)
 
 def main(stdscr):
     global sortkey, sortdir, max_file_length, max_stamp_length, max_fsize_length, max_star_length, max_rating_length
@@ -132,6 +136,7 @@ def main(stdscr):
     
     curses.curs_set(0) # hide cursor
     screen = curses.initscr()
+    titlepad = curses.newpad(3,100)
     pad = curses.newpad(100,100)
     update_size(screen)
 
@@ -162,20 +167,23 @@ def main(stdscr):
     selection=0
     max_file_length = 2 + max(len(f.filename) for f in files) # 2 for Deletion flag
     max_stamp_length = len(time.asctime())
-    max_fsize_length = 8
+    max_fsize_length = 7
     max_star_length = max(len("star"), max(len(f.star) for f in files))
-    max_rating_length = 7
+    max_rating_length = 6
 
-    draw_title(pad)
+    titlepad.refresh(0, 0, 0, 0, 2, windowx-1)
+    draw_title(titlepad)
 
-    header= 2
+    header= 3
     while(True):
         update_size(screen)
         files_max_y = max(0,windowy - header)
-        draw_files(pad, files, selection, header)
+        draw_files(pad, files, selection)
 
+        titlepad.refresh(0, 0, 0, 0, 2, windowx-1)
+        
         pad_y = selection - files_max_y if selection > files_max_y else 0
-        pad.refresh(pad_y, 0, 0, 0, windowy-1, windowx-1)
+        pad.refresh(pad_y, 0, 2, 0, windowy-1, windowx-1)
 
         key = screen.getkey()
         if key == "KEY_DOWN":
@@ -195,7 +203,7 @@ def main(stdscr):
             files[selection].star = input if input else ""
             syncFilesDB(files, rootFolder+"/"+filesdb, False)
             max_star_length = max(len("star"), max(len(f.star) for f in files))
-            draw_title(pad)
+            draw_title(titlepad)
         elif key == "\n":
             selectedFile = rootFolder+"/"+files[selection].filename + files[selection].ext
             subprocess.run([cmdProcess, f'{os.path.abspath(selectedFile)}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -212,8 +220,8 @@ def main(stdscr):
             files = [f for f in files if not f.isMarkedForDeletion]
             syncFilesDB(files, rootFolder+"/"+filesdb, False)
             pad.clear()
-            draw_title(pad)
-            draw_files(pad, files, selection, header)
+            draw_title(titlepad)
+            draw_files(pad, files, selection)
         elif key == "s":
             if sortdir == 0:
                 sortdir = 1
@@ -221,7 +229,7 @@ def main(stdscr):
                 sortdir = 0
                 sortkey = (sortkey +1) % len(sortfns)
             files.sort(key=sortfns[sortkey], reverse=(sortdir==1))
-            draw_title(pad)
+            draw_title(titlepad)
         elif key == "q" or key == "Q":
             exit()
             
