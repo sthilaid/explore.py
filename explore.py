@@ -203,14 +203,16 @@ def main(stdscr):
             selection = min(selection+1, len(files)-1)
         elif key == "KEY_UP":
             selection = max(selection-1, 0)
-        elif key == "KEY_LEFT":
+        elif key == "KEY_SLEFT":
             files[selection].rating = max(0, files[selection].rating-1)
             syncFilesDB(files, rootFolder+"/"+filesdb, False)
-        elif key == "KEY_RIGHT":
+        elif key == "KEY_SRIGHT":
             files[selection].rating = min(5, files[selection].rating+1)
             syncFilesDB(files, rootFolder+"/"+filesdb, False)
-        elif key == " ":
-            selection = min(selection+10, len(files)-1)
+        elif key == "KEY_RIGHT":
+            selection = min(selection+5, len(files)-1)
+        elif key == "KEY_LEFT":
+            selection = max(0, selection-5)
         elif key == "e":
             input = pad.getstr().decode("utf-8")
             # box.edit()
