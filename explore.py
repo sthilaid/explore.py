@@ -1,7 +1,12 @@
 #!/usr/bin/python3.9
 
 from curses import wrapper
-import os, subprocess, shutil, curses, time, pickle, sys, curses.textpad
+import os, subprocess, shutil, curses, time, pickle, sys, curses.textpad, random
+
+rootFolder = "."
+extensionFilter = ""
+cmdProcess = "echo"
+filesdb = ".filesdb"
 
 sortfns = [lambda x: x.filename,
                lambda x: x.timestamp,
@@ -21,6 +26,7 @@ lastsizex = 0
 lastsizey = 0
 windowx = 0
 windowy = 0
+random_rating=0
 
 class File:
     def __init__(self, filename, ext, timestamp, fsize):
@@ -110,6 +116,7 @@ def draw_title(pad):
 
 def draw_files(pad, files, selection):
     global max_file_length, max_star_length, max_rating_length, max_stamp_length, max_fsize_length
+    global random_rating
     lineIndex = 0
     for i,f in enumerate(files):
         attr = curses.A_STANDOUT if i == selection else 0
@@ -125,15 +132,21 @@ def draw_files(pad, files, selection):
         pad.addstr(i, xoffset, '{:.2f} GB '.format(f.filesize*0.000000001), attr);
 
         xoffset += max_fsize_length+1
-        pad.addstr(i, xoffset, "*" * f.rating + " " * (5 - f.rating)+"  ", attr)
+        rating_attr = curses.A_STANDOUT if random_rating > 0 and f.rating >= random_rating else attr
+        pad.addstr(i, xoffset, "*" * f.rating + " " * (5 - f.rating)+"  ", rating_attr)
 
         xoffset += max_rating_length+1
         pad.addstr(i, xoffset, f.star, attr)
         pad.addstr(i, xoffset+len(f.star), " "*40, attr)
 
+def runfile(file):
+    selectedFile = rootFolder+"/"+file.filename + file.ext
+    subprocess.run([cmdProcess, f'{os.path.abspath(selectedFile)}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 def main(stdscr):
     global sortkey, sortdir, max_file_length, max_stamp_length, max_fsize_length, max_star_length, max_rating_length
     global lastsizey, lastsizex, header
+    global rootFolder,extensionFilter, cmdProcess, filesdb, random_rating
     
     curses.curs_set(0) # hide cursor
     screen = curses.initscr()
@@ -144,11 +157,6 @@ def main(stdscr):
     # boxwindow = curses.newwin(5,30,2,1)
     # box = curses.textpad.Textbox(boxwindow)
 
-    rootFolder = "."
-    extensionFilter = ""
-    cmdProcess = "echo"
-    filesdb = ".filesdb"
-    
     if len(sys.argv) > 1:
         rootFolder = sys.argv[1]
         if len(sys.argv) > 2:
@@ -212,8 +220,7 @@ def main(stdscr):
             max_star_length = max(len("star"), max(len(f.star) for f in files))
             draw_title(titlepad)
         elif key == "\n":
-            selectedFile = rootFolder+"/"+files[selection].filename + files[selection].ext
-            subprocess.run([cmdProcess, f'{os.path.abspath(selectedFile)}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            runfile(files[selection]);
         elif key == "d":
             files[selection].isMarkedForDeletion = not files[selection].isMarkedForDeletion
         elif key == "x":
@@ -237,6 +244,21 @@ def main(stdscr):
                 sortkey = (sortkey +1) % len(sortfns)
             files.sort(key=sortfns[sortkey], reverse=(sortdir==1))
             draw_title(titlepad)
+        elif key == "S":
+            if sortdir == 1:
+                sortdir = 0
+            else:
+                sortdir = 1
+                sortkey = (sortkey-1) % len(sortfns)
+            files.sort(key=sortfns[sortkey], reverse=(sortdir==1))
+            draw_title(titlepad)
+        elif key == "r":
+            validfiles = [f for f in files if f.rating >= random_rating]
+            randfile = validfiles[random.randrange(len(validfiles))]
+            selection = files.index(randfile)
+            runfile(files[selection])
+        elif key == "R":
+            random_rating = (random_rating+1) % 6
         elif key == "q" or key == "Q":
             exit()
             
