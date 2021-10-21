@@ -11,6 +11,7 @@ sortfns = [lambda x: x.filename,
                ]
 sortkey = 0
 sortdir = 0
+header= 3
 max_file_length = 0
 max_stamp_length = 0
 max_fsize_length = 0
@@ -132,7 +133,7 @@ def draw_files(pad, files, selection):
 
 def main(stdscr):
     global sortkey, sortdir, max_file_length, max_stamp_length, max_fsize_length, max_star_length, max_rating_length
-    global lastsizey, lastsizex
+    global lastsizey, lastsizex, header
     
     curses.curs_set(0) # hide cursor
     screen = curses.initscr()
@@ -174,7 +175,6 @@ def main(stdscr):
     titlepad.refresh(0, 0, 0, 0, 2, windowx-1)
     draw_title(titlepad)
 
-    header= 3
     while(True):
         update_size(screen)
         files_max_y = max(0,windowy - header)
@@ -182,7 +182,12 @@ def main(stdscr):
 
         titlepad.refresh(0, 0, 0, 0, 2, windowx-1)
         
-        pad_y = selection - files_max_y if selection > files_max_y else 0
+        # pad_y = selection - files_max_y if selection > files_max_y else 0
+        pad_y = 0
+        if selection > (len(files) - (files_max_y // 2))-1:
+            pad_y = len(files) - files_max_y
+        elif selection > files_max_y // 2:
+            pad_y = selection - (files_max_y // 2)
         pad.refresh(pad_y, 0, 2, 0, windowy-1, windowx-1)
 
         key = screen.getkey()
@@ -196,6 +201,8 @@ def main(stdscr):
         elif key == "KEY_RIGHT":
             files[selection].rating = min(5, files[selection].rating+1)
             syncFilesDB(files, rootFolder+"/"+filesdb, False)
+        elif key == " ":
+            selection = min(selection+10, len(files)-1)
         elif key == "e":
             input = pad.getstr().decode("utf-8")
             # box.edit()
