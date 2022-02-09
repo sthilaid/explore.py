@@ -1,4 +1,4 @@
-#!/usr/bin/python3.9
+#!/usr/bin/python3
 
 from curses import wrapper
 import os, subprocess, shutil, curses, time, pickle, sys, curses.textpad, random
@@ -9,13 +9,13 @@ cmdProcess = "echo"
 filesdb = ".filesdb"
 
 sortfns = [lambda x: x.filename,
-               lambda x: x.timestamp,
-               lambda x: x.filesize,
-               lambda x: x.rating,
-               lambda x: x.star,
-               ]
-sortkey = 0
-sortdir = 0
+           lambda x: x.timestamp,
+           lambda x: x.filesize,
+           lambda x: x.rating,
+           lambda x: x.star,
+           ]
+sortkey = 1
+sortdir = 1
 header= 3
 max_file_length = 0
 max_stamp_length = 0
@@ -27,6 +27,7 @@ lastsizey = 0
 windowx = 0
 windowy = 0
 random_rating=0
+random_maxrange=0
 
 class File:
     def __init__(self, filename, ext, timestamp, fsize):
@@ -116,7 +117,7 @@ def draw_title(pad):
 
 def draw_files(pad, files, selection):
     global max_file_length, max_star_length, max_rating_length, max_stamp_length, max_fsize_length
-    global random_rating
+    global sortkey, random_rating, random_maxrange
     lineIndex = 0
     for i,f in enumerate(files):
         attr = curses.A_STANDOUT if i == selection else 0
@@ -124,15 +125,17 @@ def draw_files(pad, files, selection):
         pad.addstr(i, 2, f.filename, attr)
         pad.addstr(i, 2+len(f.filename), " "*(max_file_length - len(f.filename)), attr)
 
+        is_sorted_by_ratings = sortkey == 3 # sorted by ratings
         stampstr = time.asctime(time.localtime(f.timestamp))+" "
+        stamp_attr = curses.A_STANDOUT if not is_sorted_by_ratings and random_maxrange > 0 and i < random_maxrange else attr
         xoffset = max_file_length+1
-        pad.addstr(i, xoffset, stampstr, attr)
+        pad.addstr(i, xoffset, stampstr, stamp_attr)
 
         xoffset += max_stamp_length+1
         pad.addstr(i, xoffset, '{:.2f} GB '.format(f.filesize*0.000000001), attr);
 
         xoffset += max_fsize_length+1
-        rating_attr = curses.A_STANDOUT if random_rating > 0 and f.rating >= random_rating else attr
+        rating_attr = curses.A_STANDOUT if is_sorted_by_ratings and random_rating > 0 and f.rating >= random_rating else attr
         pad.addstr(i, xoffset, "*" * f.rating + " " * (5 - f.rating)+"  ", rating_attr)
 
         xoffset += max_rating_length+1
@@ -146,7 +149,7 @@ def runfile(file):
 def main(stdscr):
     global sortkey, sortdir, max_file_length, max_stamp_length, max_fsize_length, max_star_length, max_rating_length
     global lastsizey, lastsizex, header
-    global rootFolder,extensionFilter, cmdProcess, filesdb, random_rating
+    global rootFolder,extensionFilter, cmdProcess, filesdb, random_rating, random_maxrange
     
     curses.curs_set(0) # hide cursor
     screen = curses.initscr()
@@ -255,12 +258,21 @@ def main(stdscr):
             files.sort(key=sortfns[sortkey], reverse=(sortdir==1))
             draw_title(titlepad)
         elif key == "r":
-            validfiles = [f for f in files if f.rating >= random_rating]
-            randfile = validfiles[random.randrange(len(validfiles))]
-            selection = files.index(randfile)
+            if sortkey == 3: # sorted by ratings:
+                validfiles = [f for f in files if f.rating >= random_rating]
+                randfile = validfiles[random.randrange(len(validfiles))]
+                selection = files.index(randfile)
+            else:
+                validfiles = [f for i,f in enumerate(files) if random_maxrange == 0 or i < random_maxrange]
+                randfile = validfiles[random.randrange(len(validfiles))]
+                selection = files.index(randfile)
             runfile(files[selection])
         elif key == "R":
             random_rating = (random_rating+1) % 6
+        elif key == "[":
+            random_maxrange = max(random_maxrange-5, 0)
+        elif key == "]":
+            random_maxrange = min(random_maxrange+5, len(files))
         elif key == "q" or key == "Q":
             exit()
             
