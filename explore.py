@@ -29,6 +29,22 @@ windowy = 0
 random_rating=0
 random_maxrange=0
 
+def is_sorted_by_filename():
+    global sortkey
+    return sortkey == 0
+def is_sorted_by_timestamp():
+    global sortkey
+    return sortkey == 1
+def is_sorted_by_filesize():
+    global sortkey
+    return sortkey == 2
+def is_sorted_by_ratings():
+    global sortkey
+    return sortkey == 3
+def is_sorted_by_star():
+    global sortkey
+    return sortkey == 4
+
 class File:
     def __init__(self, filename, ext, timestamp, fsize):
         self.filename = filename
@@ -121,25 +137,28 @@ def draw_files(pad, files, selection):
     lineIndex = 0
     for i,f in enumerate(files):
         attr = curses.A_STANDOUT if i == selection else 0
+
+        filename_attr = curses.A_STANDOUT if is_sorted_by_filename() and random_maxrange > 0 and i < random_maxrange else attr
         pad.addstr(i, 0, "D " if f.isMarkedForDeletion else "  ", attr)
         pad.addstr(i, 2, f.filename, attr)
-        pad.addstr(i, 2+len(f.filename), " "*(max_file_length - len(f.filename)), attr)
+        pad.addstr(i, 2+len(f.filename), " "*(max_file_length - len(f.filename)), filename_attr)
 
-        is_sorted_by_ratings = sortkey == 3 # sorted by ratings
         stampstr = time.asctime(time.localtime(f.timestamp))+" "
-        stamp_attr = curses.A_STANDOUT if not is_sorted_by_ratings and random_maxrange > 0 and i < random_maxrange else attr
+        stamp_attr = curses.A_STANDOUT if is_sorted_by_timestamp() and random_maxrange > 0 and i < random_maxrange else attr
         xoffset = max_file_length+1
         pad.addstr(i, xoffset, stampstr, stamp_attr)
 
         xoffset += max_stamp_length+1
-        pad.addstr(i, xoffset, '{:.2f} GB '.format(f.filesize*0.000000001), attr);
+        size_attr = curses.A_STANDOUT if is_sorted_by_filesize() and random_maxrange > 0 and i < random_maxrange else attr
+        pad.addstr(i, xoffset, '{:.2f} GB '.format(f.filesize*0.000000001), size_attr);
 
         xoffset += max_fsize_length+1
-        rating_attr = curses.A_STANDOUT if is_sorted_by_ratings and random_rating > 0 and f.rating >= random_rating else attr
+        rating_attr = curses.A_STANDOUT if is_sorted_by_ratings() and random_rating > 0 and f.rating >= random_rating else attr
         pad.addstr(i, xoffset, "*" * f.rating + " " * (5 - f.rating)+"  ", rating_attr)
 
         xoffset += max_rating_length+1
-        pad.addstr(i, xoffset, f.star, attr)
+        star_attr = curses.A_STANDOUT if is_sorted_by_star() and random_maxrange > 0 and i < random_maxrange else attr
+        pad.addstr(i, xoffset, f.star, star_attr)
         pad.addstr(i, xoffset+len(f.star), " "*40, attr)
 
 def runfile(file):
