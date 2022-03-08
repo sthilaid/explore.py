@@ -1,9 +1,11 @@
 #!/usr/bin/python3
+# ./explore.py [rootFolder] [extensionFilter] [cmdProcess] [filesdb] [newContentFolder]
 
 from curses import wrapper
-import os, subprocess, shutil, curses, time, pickle, sys, curses.textpad, random
+import re, os, subprocess, shutil, curses, time, pickle, sys, curses.textpad, random
 
 rootFolder = "."
+newContentFolder = "."
 extensionFilter = ""
 cmdProcess = "echo"
 filesdb = ".filesdb"
@@ -46,11 +48,12 @@ def is_sorted_by_star():
     return sortkey == 4
 
 class File:
-    def __init__(self, filename, ext, timestamp, fsize):
+    def __init__(self, filename, ext, timestamp, fsize, abspath):
         self.filename = filename
         self.ext = ext
         self.timestamp = timestamp
         self.filesize = fsize
+        self.abspath = abspath
         self.isMarkedForDeletion = False
         self.star = ""
         self.rating = 0
@@ -95,16 +98,21 @@ def syncFilesDB(files, filesdb, fromDB):
 
     pickle.dump( dbfiles, open( filesdb, "wb" ) )
 
-def get_files(path, desired_ext):
+def get_files(path, desired_ext, shouldRecurse=False):
     files = []
     allfiles = os.listdir(path)
     for i in range(0, len(allfiles)):
         f = allfiles[i]
-        (file,ext) = os.path.splitext(f)
-        if ext == desired_ext:
-            stamp = os.path.getmtime(path+"/"+f)
-            fsize = os.path.getsize(path+"/"+f)
-            files.append(File(file, ext, stamp, fsize))
+        fpath = path+"/"+f
+        if shouldRecurse and os.path.isdir(fpath):
+            subfiles = get_files(path+"/"+f, desired_ext, shouldRecurse)
+            files.extend(subfiles)
+        else:
+            (file,ext) = os.path.splitext(f)
+            if ext == desired_ext:
+                stamp = os.path.getmtime(path+"/"+f)
+                fsize = os.path.getsize(path+"/"+f)
+                files.append(File(file, ext, stamp, fsize, os.path.abspath(path+"/"+f)))
     return files
 
 def draw_title(pad):
@@ -161,15 +169,49 @@ def draw_files(pad, files, selection):
         pad.addstr(i, xoffset, f.star, star_attr)
         pad.addstr(i, xoffset+len(f.star), " "*40, attr)
 
+def validateNewContent(screen, pad):
+    global rootFolder, newContentFolder, extensionFilter
+    
+    files = get_files(newContentFolder, extensionFilter, True)
+
+    pad.clear()
+    pad.addstr(0, 0, "y: keep file, n: delete file, else: ignore", 0)
+    i = 2;
+    
+    for f in files:
+        pad.addstr(i, 0, "Now Playing "+f.filename, 0)
+        pad.refresh(0, 0, 0, 0, windowy-1, windowx-1)
+        runfile(f)
+        
+        question_str = "Should keep file "+f.filename+"? "
+        pad.addstr(i, 0, question_str, 0)
+        pad.refresh(0, 0, 0, 0, windowy-1, windowx-1)
+
+        key = screen.getkey()
+        should_keep = key == "y" or key == "Y"
+        should_delete = key == "n" or key == "N"
+
+        if should_keep:
+            cleaned_filename = re.sub(".*@", "", f.filename)
+            os.rename(f.abspath, rootFolder+"/"+cleaned_filename)
+        elif should_delete:
+            shutil.rmtree(os.path.dirname(f.abspath))
+        else:
+            pad.addstr(i, len(question_str)+2, "ignored", 0)
+            pad.refresh(0, 0, 0, 0, windowy-1, windowx-1)
+        i = i+1
+        
+    pad.clear()
+        
 def runfile(file):
-    selectedFile = rootFolder+"/"+file.filename + file.ext
+    selectedFile = file.abspath
     subprocess.run([cmdProcess, f'{os.path.abspath(selectedFile)}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def main(stdscr):
     global sortkey, sortdir, max_file_length, max_stamp_length, max_fsize_length, max_star_length, max_rating_length
     global lastsizey, lastsizex, header
-    global rootFolder,extensionFilter, cmdProcess, filesdb, random_rating, random_maxrange
-    
+    global rootFolder, newContentFolder, extensionFilter, cmdProcess, filesdb, random_rating, random_maxrange
+
     curses.curs_set(0) # hide cursor
     screen = curses.initscr()
     titlepad = curses.newpad(3,100)
@@ -187,7 +229,9 @@ def main(stdscr):
                 cmdProcess = sys.argv[3]
                 if len(sys.argv) > 4:
                     filesdb = sys.argv[4]
-
+                    if len(sys.argv) > 5:
+                        newContentFolder = sys.argv[5]
+                        
     files = get_files(rootFolder, extensionFilter)
     syncFilesDB(files, rootFolder+"/"+filesdb, True)
     files.sort(key=sortfns[sortkey], reverse=(sortdir==1))
@@ -292,6 +336,8 @@ def main(stdscr):
             random_maxrange = max(random_maxrange-5, 0)
         elif key == "]":
             random_maxrange = min(random_maxrange+5, len(files))
+        elif key == "c" or key == "C":
+            validateNewContent(screen, pad)
         elif key == "q" or key == "Q":
             exit()
             
