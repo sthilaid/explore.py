@@ -193,7 +193,8 @@ def validateNewContent(screen, pad):
 
         if should_keep:
             cleaned_filename = re.sub(".*@", "", f.filename)
-            os.rename(f.abspath, rootFolder+"/"+cleaned_filename)
+            extension = os.path.splitext(f.abspath)[1]
+            os.rename(f.abspath, rootFolder+"/"+cleaned_filename+extension)
         elif should_delete:
             shutil.rmtree(os.path.dirname(f.abspath))
         else:
@@ -206,6 +207,14 @@ def validateNewContent(screen, pad):
 def runfile(file):
     selectedFile = file.abspath
     subprocess.run([cmdProcess, f'{os.path.abspath(selectedFile)}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def update_files():
+    global rootFolder, extension, filesdb, sortkey, softfns, sortdir
+    
+    files = get_files(rootFolder, extensionFilter)
+    syncFilesDB(files, rootFolder+"/"+filesdb, True)
+    files.sort(key=sortfns[sortkey], reverse=(sortdir==1))
+    return files
 
 def main(stdscr):
     global sortkey, sortdir, max_file_length, max_stamp_length, max_fsize_length, max_star_length, max_rating_length
@@ -232,10 +241,7 @@ def main(stdscr):
                     if len(sys.argv) > 5:
                         newContentFolder = sys.argv[5]
                         
-    files = get_files(rootFolder, extensionFilter)
-    syncFilesDB(files, rootFolder+"/"+filesdb, True)
-    files.sort(key=sortfns[sortkey], reverse=(sortdir==1))
-
+    files = update_files()
     if len(files) == 0:
         return
     
@@ -338,6 +344,8 @@ def main(stdscr):
             random_maxrange = min(random_maxrange+5, len(files))
         elif key == "c" or key == "C":
             validateNewContent(screen, pad)
+            files = update_files()
+            draw_files(pad, files, selection)
         elif key == "q" or key == "Q":
             exit()
             
