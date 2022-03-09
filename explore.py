@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# ./explore.py [rootFolder] [extensionFilter] [cmdProcess] [filesdb] [newContentFolder]
+# ./explore.py [rootFolder] [extensionFilter] [cmdProcess] [filesdb] [newContentFolder] [cmdProcessArg]
 
 from curses import wrapper
 import re, os, subprocess, shutil, curses, time, pickle, sys, curses.textpad, random
@@ -8,6 +8,7 @@ rootFolder = "."
 newContentFolder = "."
 extensionFilter = ""
 cmdProcess = "echo"
+cmdProcessArg = ""
 filesdb = ".filesdb"
 
 sortfns = [lambda x: x.filename,
@@ -205,8 +206,10 @@ def validateNewContent(screen, pad):
     pad.clear()
         
 def runfile(file):
+    global cmdProcess, cmdProcessArg
+    
     selectedFile = file.abspath
-    subprocess.run([cmdProcess, f'{os.path.abspath(selectedFile)}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run([cmdProcess, cmdProcessArg, f"{os.path.abspath(selectedFile)}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def update_files():
     global rootFolder, extension, filesdb, sortkey, softfns, sortdir
@@ -219,7 +222,7 @@ def update_files():
 def main(stdscr):
     global sortkey, sortdir, max_file_length, max_stamp_length, max_fsize_length, max_star_length, max_rating_length
     global lastsizey, lastsizex, header
-    global rootFolder, newContentFolder, extensionFilter, cmdProcess, filesdb, random_rating, random_maxrange
+    global rootFolder, newContentFolder, extensionFilter, cmdProcess, cmdProcessArg, filesdb, random_rating, random_maxrange
 
     curses.curs_set(0) # hide cursor
     screen = curses.initscr()
@@ -240,6 +243,8 @@ def main(stdscr):
                     filesdb = sys.argv[4]
                     if len(sys.argv) > 5:
                         newContentFolder = sys.argv[5]
+                        if len(sys.argv) > 6:
+                            cmdProcessArg = sys.argv[6]
                         
     files = update_files()
     if len(files) == 0:
