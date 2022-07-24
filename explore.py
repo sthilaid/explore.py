@@ -204,6 +204,33 @@ def validateNewContent(screen, pad):
         i = i+1
         
     pad.clear()
+
+def help(screen, pad):
+    pad.clear()
+    i = 0
+    pad.clear()
+    pad.addstr(i, 0, "Key Bindings -- press anything to continue", 0)
+    i = i+2
+    pad.addstr(i, 0, "c - validate new content", 0)
+    i = i+1
+    pad.addstr(i, 0, "enter - activate file", 0)
+    i = i+1
+    pad.addstr(i, 0, "d - mark for delection", 0)
+    i = i+1
+    pad.addstr(i, 0, "x - delete marked files", 0)
+    i = i+1
+    pad.addstr(i, 0, "e - edit star name", 0)
+    i = i+1
+    pad.addstr(i, 0, "s/S - change sort method", 0)
+    i = i+1
+    pad.addstr(i, 0, "[/] - edit random range", 0)
+    i = i+1
+    pad.addstr(i, 0, "r - activate random file", 0)
+    i = i+1
+    pad.refresh(0, 0, 0, 0, windowy-1, windowx-1)
+    
+    screen.getkey() # wait for input
+    pad.clear()
         
 def runfile(file):
     global cmdProcess, cmdProcessArg
@@ -350,6 +377,9 @@ def main(stdscr):
         elif key == "c" or key == "C":
             validateNewContent(screen, pad)
             files = update_files()
+            draw_files(pad, files, selection)
+        elif key == "?":
+            help(screen, pad)
             draw_files(pad, files, selection)
         elif key == "q" or key == "Q":
             exit()
